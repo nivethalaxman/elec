@@ -1,0 +1,1260 @@
+<?php
+//var_dump('hello');
+$params = $this->getRequest()->getParams();
+//var_dump($params);
+$objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+$mediaurl = $objectManager->get('Magento\Store\Model\StoreManagerInterface')
+    ->getStore()
+    ->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA);
+//var_dump($mediaurl);
+$baseurl = $objectManager->get('Magento\Store\Model\StoreManagerInterface')
+    ->getStore()
+    ->getBaseUrl();
+//var_dump($baseurl);
+$storeConfig = $objectManager->get('Magento\Framework\App\Config\ScopeConfigInterface');
+$storeScope = \Magento\Store\Model\ScopeInterface::SCOPE_STORE;
+$solrModule = $storeConfig->getValue('solr/general/enable', $storeScope);
+$apiUrl = $storeConfig->getValue('solr/general/api_url', $storeScope);
+//var_dump($solrModule);
+//var_dump($apiUrl);
+$storeName = $objectManager->get('Magento\Store\Model\StoreManagerInterface')->getStore()->getName();
+//var_dump($storeName);
+
+$currencyCode = $objectManager->get('Magento\Store\Model\StoreManagerInterface')->getStore()->getCurrentCurrency()->getCode();
+//var_dump($currencyCode);
+$currencySymbol = $objectManager->create('Magento\Directory\Model\CurrencyFactory')->create()->load($currencyCode);
+$currency = $currencySymbol->getCurrencySymbol();
+//var_dump($currency);
+?>
+<script type="text/javascript">
+    require([
+            'jquery'
+        ], function ($) {
+    var base_url = '<?php echo $baseurl; ?>';
+    var image_url = '<?php echo $mediaurl ?>catalog/product';
+    var cat_image_url = '<?php echo $mediaurl ?>catalog/category';
+    var api_url = '<?php echo $apiUrl; ?>';
+	var sugg_api_url = 'http://192.168.1.64:3030/api/v1/solr_dummy_test';
+    var sugg_api_url2 = 'http://192.168.1.64:3030/api/v1/mouse_over';
+    var g_sortOrder = 'asc';
+    var facetObj = [];
+    var g_currentFacetObj = '';
+    var g_facets = '';
+    var g_current_facet = '';
+    //var store_name = 'decor_island';
+    var store_name = 'bigrocks';
+    //var store_name = '<?php //echo $storeName; ?>';
+
+    $(document).ready(function () {
+
+        /* Auto Suggestion - Start */
+        if (store_name == 'bigrocks') {
+            jQuery(document).on('keyup', '#search', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+    //            alert(jQuery(this).val());
+                var q = jQuery(this).val();
+                if (q.length < 2) {
+                    jQuery(document).find('#search_autocomplete').hide();
+                } else {
+                    if (q.length > 1) {
+                        var url = sugg_api_url + '?q=' + q + '&project_id='+store_name;
+                        jQuery.ajax({
+                            type: "GET",
+                            url: url,
+                            //data: data,
+                            //dataType: 'json',
+                            //contentType: "application/json",
+                            success: function (res) {
+                                console.log(res);
+                                var c_key_s = 0;
+                                var s_html = '';
+                                s_html += '<div class="sugg-left">';
+                                /* keywords */
+                                if (res['product_keywords']) {
+                                    // jQuery.each(res['product_keywords'], function (key, data) {
+                                        s_html += '<h4>Suggestions</h4>';
+                                        s_html += '<ul class="product_keywords">';
+                                        jQuery.each(res['product_keywords'], function (key1, data1) {
+                                            s_html += '<li data-key="product_keywords" data-val="'+data1+'">'+data1+'</li>';
+                                        });
+                                        s_html += '</ul>';
+                                    // });
+                                }
+
+                                /* category */
+                                jQuery.each(res, function (key, data) {
+                                    var c_key = key.slice(0, -2);
+                                    if (c_key == 'categories') {
+                                        c_key_s = 1;
+                                    }
+                                });
+                                if (c_key_s == 1) {
+                                    s_html += '<h4>Categories</h4>';
+                                    s_html += '<ul class="categories">';
+                                    jQuery.each(res, function (key, data) {
+                                        var c_key = key.slice(0, -2);
+                                        if (c_key == 'categories') {
+                                            jQuery.each(data, function (key1, data1) {
+                                                s_html += '<li data-key="'+key+'" data-val="'+data1+'">'+data1+'</li>';
+                                            });
+                                        }
+                                    });
+                                    s_html += '</ul>';
+                                }
+
+                                jQuery.each(res, function (key, data) {
+                                    if (key != 'facet' && key != 'name' && key != 'product_keywords') {
+                                        var c_key = key.slice(0, -2);
+                                        if (c_key != 'categories') {
+                                            d_key = key.replace("_", " ");
+                                            s_html += '<h4>'+d_key+'</h4>';
+                                            s_html += '<ul class="'+key+'">';
+                                            jQuery.each(data, function (key1, data1) {
+                                                s_html += '<li data-key="'+key+'" data-val="'+data1+'">'+data1+'</li>';
+                                            });
+                                            s_html += '</ul>';
+                                        }
+                                    }
+                                });
+
+                                /* product name */
+                                if (!res['product_keywords']) {
+                                    if (res['name']) {
+                                        // jQuery.each(res, function (key, data) {
+                                            // if (key == 'name') {
+                                                s_html += '<h4>Products</h4>';
+                                                s_html += '<ul class="name">';
+                                                jQuery.each(res['name'], function (key1, data1) {
+                                                    s_html += '<li data-key="name" data-val="'+data1+'">'+data1+'</li>';
+                                                });
+                                                s_html += '</ul>';
+                                            // }
+                                        // });
+                                    }
+                                }
+
+                                /* backup for all suggestions */
+                                /*jQuery.each(res, function (key, data) {
+                                    if (key != 'facet' && key != 'name' && key != 'product_keywords') {
+                                        d_key = key.replace("_", " ");
+                                        s_html += '<h4>'+d_key+'</h4>';
+                                        s_html += '<ul class="'+key+'">';
+                                        jQuery.each(data, function (key1, data1) {
+                                            s_html += '<li data-key="'+key+'" data-val="'+data1+'">'+data1+'</li>';
+                                        });
+                                        s_html += '</ul>';
+                                    }
+                                });*/
+
+                                s_html += '</div><div class="sugg-right"></div>';
+                                jQuery(document).find('#search_autocomplete').html(s_html).show();
+                            },
+                            error: function (e) {
+                                console.log(e.statusText);
+                            }
+                        });
+                    }
+                }
+            });
+
+            jQuery(document).on('click', '#search_autocomplete li', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var key = jQuery(this).attr('data-key');
+                var val = jQuery(this).attr('data-val');
+                var val1 = val.replace("<em>", "");
+                val1 = val1.replace("</em>", "");
+                console.log(val1);
+                jQuery("#search").val(val1);
+                jQuery('.searchButton').click();
+                jQuery(document).find('#search_autocomplete').hide();
+
+                /*jQuery("#solr-search-form .text-input").val(val);
+                var q = key+':'+val;
+                var url = api_url + '?page_number=1&search_value=' + q + '&project_id='+store_name;
+                console.log(url);
+                jQuery.ajax({
+                    type: "GET",
+                    url: url,
+                    //data: data,
+                    //dataType: 'json',
+                    //contentType: "application/json",
+                    success: function (res) {
+                        console.log(res);
+                        jQuery(document).find('#search_autocomplete').hide();
+                        getResults(res);
+                    },
+                    error: function (e) {
+                        console.log(e.statusText);
+                        var nodata = '';
+                        nodata += '<p>No results found</p>';
+                        jQuery(".solr-no-results").html(nodata);
+                        jQuery(".solr-search-results").hide();
+                        jQuery(".solr-no-results").show();
+                    }
+                });*/
+            });
+
+            jQuery(document).on('mouseenter', '#search_autocomplete li', function (e) {
+            // jQuery(document).on('mouseenter', '#search_autocomplete .product_keywords li, #search_autocomplete .mfr_part_no li, #search_autocomplete .manufacturer li', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var key = jQuery(this).attr('data-key');
+                var val = jQuery(this).attr('data-val');
+                var val1 = val.replace("<em>", "");
+                val1 = val1.replace("</em>", "");
+                console.log(val1);
+
+                var url = sugg_api_url2 + '?project_id='+store_name+'&data='+key+':'+val;
+                console.log(url);
+                jQuery.ajax({
+                    type: "GET",
+                    url: url,
+                    //data: data,
+                    //dataType: 'json',
+                    //contentType: "application/json",
+                    success: function (res) {
+                        console.log(res);
+                        s_html = '';
+
+                        if (res['products']) {
+                            s_html += '<div class="details">';
+                            var i = 0;
+                            jQuery.each(res['products'], function (key, data) {
+                                console.log(data);
+                                var name = data['name'];
+                                var url = base_url + data['url_key'] + '.html';
+                                var jprice = data['price'];
+                                var price = '<?php echo $currency; ?>'+jprice+'.00';
+                                var image = image_url + data['base_image'];
+
+                                if (i % 2 == 0) {
+                                    s_html += '<div class="row head-content">';
+                                }
+                                s_html += '<div class="row col-md-6">';
+                                s_html += '<div class="products-image col-md-4">';
+                                s_html += '<img src="'+image+'">';
+                                s_html += '</div>';
+                                s_html += '<div class="pro-deatils col-md-8">';
+                                s_html += '<h5>'+name+'</h5>';
+                                s_html += '<h6>'+price+'</h6>';
+                                s_html += '<a href="'+url+'">View Details </a>';
+                                s_html += '</div>';
+                                s_html += '</div>';
+                                i++;
+                                if (i % 2 == 0) {
+                                    s_html += '</div>';
+                                }
+
+
+                                
+                                /*s_html += '<li>';
+                                s_html += '<a href="">'+data['name']+'</a>';
+                                s_html += '</li>';*/
+                            });
+                            if (i % 2 != 1) {
+                                s_html += '</div>';
+                            }
+                            s_html += '</div>';
+                        } else {
+                            s_html += '<div class="details">';
+                            var i = 0;
+                            jQuery.each(res['category'], function (key, data) {
+                                var name = '';
+                                var url = '';
+                                var image = '';
+                                jQuery.each(data, function (key1, data1) {
+                                    console.log(key1);
+                                    console.log(data1);
+                                    var c_key = key1.slice(0, -2);
+                                    if (c_key == 'categories') {
+                                        name = data1;
+                                    } else if (c_key == 'category_url') {
+                                        url = base_url + data1 + '.html';
+                                    } else if (c_key == 'category_image') {
+                                        image = cat_image_url + data1;
+                                    }
+                                });
+                                if (i % 2 == 0) {
+                                    s_html += '<div class="row head-content">';
+                                }
+                                s_html += '<div class="row col-md-6">';
+                                s_html += '<div class="products-image col-md-4">';
+                                s_html += '<img src="'+image+'">';
+                                s_html += '</div>';
+                                s_html += '<div class="pro-deatils col-md-8">';
+                                s_html += '<h5>'+name+'</h5>';
+                                s_html += '<a href="'+url+'">View Details </a>';
+                                s_html += '</div>';
+                                s_html += '</div>';
+                                i++;
+                                if (i % 2 == 0) {
+                                    s_html += '</div>';
+                                }
+
+
+                                
+                                /*s_html += '<li>';
+                                s_html += '<a href="">'+data['name']+'</a>';
+                                s_html += '</li>';*/
+                            });
+                            if (i % 2 != 1) {
+                                s_html += '</div>';
+                            }
+                            s_html += '</div>';
+                        }
+
+                        
+                        jQuery(document).find('#search_autocomplete .sugg-right').html(s_html);
+                    },
+                    error: function (e) {
+                        console.log(e.statusText);
+                        
+                    }
+                });
+            });
+        }
+        /* Auto Suggestion - End */
+
+        //var q = jQuery("#solr-search-form .text-input").val();
+        var q = jQuery("#search").val();
+        //alert(q);
+		if (q != '' && q != 'undefined' && q != undefined) {
+			var url = api_url + '?page_number=1&search_value=' + q + '&project_id='+store_name;
+			console.log(url);
+			jQuery.ajax({
+				type: "GET",
+				url: url,
+				//data: data,
+				//dataType: 'json',
+				//contentType: "application/json",
+				success: function (res) {
+					console.log(res);
+					getResults(res);
+				},
+				error: function (e) {
+					console.log(e.statusText);
+					var nodata = '';
+					nodata += '<p>No results found</p>';
+					jQuery(".solr-no-results").html(nodata);
+					jQuery(".solr-search-results").hide();
+					jQuery(".solr-no-results").show();
+				}
+			});
+		}
+
+        jQuery(document).on('click', '.solr-index-index .solr-search-page', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            //var q = jQuery("#solr-search-form .text-input").val();
+            var q = jQuery("#search").val();
+            var sort = jQuery(document).find("select#solr-sort-by option:checked").val();
+            var sorttext = '';
+            if (sort != '') {
+                sorttext = '&sort=' + sort + ' ' + g_sortOrder;
+            }
+            var page = jQuery(this).attr('data-page');
+            var url = api_url + '?page_number=' + page + '&search_value=' + q + '&project_id='+store_name + sorttext;
+
+            var facetUrl = '';
+            facetObj = [];
+            jQuery(document).find('.filter-options-content .item a.selected').each(function (key, item) {
+                var f_url = jQuery(this).attr('data-facet') + ':' + jQuery(this).attr('data-facet-option');
+                facetObj.push(f_url);
+            });
+            if (facetObj.length) {
+                jQuery.each(facetObj, function (key, data) {
+                    if (key != 0) {
+                        facetUrl += '|';
+                    }
+                    facetUrl += data;
+                });
+            }
+            if (facetUrl != '') {
+                url += '&facets=' + facetUrl;
+            }
+            console.log(url);
+            jQuery.ajax({
+                type: "GET",
+                url: url,
+                success: function (res) {
+                    page = parseInt(page);
+                    getResults(res, page, sort, g_sortOrder, facetObj);
+                }
+            });
+        });
+
+        jQuery(document).on('change', '.solr-index-index select#solr-sort-by', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            //var q = jQuery("#solr-search-form .text-input").val();
+            var q = jQuery("#search").val();
+            var sort = jQuery(document).find("select#solr-sort-by option:checked").val();
+            var sorttext = '';
+            if (sort != '') {
+                sorttext = '&sort=' + sort + ' ' + g_sortOrder;
+            }
+            var page = '1';
+            var url = api_url + '?page_number=' + page + '&search_value=' + q + '&project_id='+store_name + sorttext;
+
+            var facetUrl = '';
+            facetObj = [];
+            jQuery(document).find('.filter-options-content .item a.selected').each(function (key, item) {
+                var f_url = jQuery(this).attr('data-facet') + ':' + jQuery(this).attr('data-facet-option');
+                facetObj.push(f_url);
+            });
+            if (facetObj.length) {
+                jQuery.each(facetObj, function (key, data) {
+                    if (key != 0) {
+                        facetUrl += '|';
+                    }
+                    facetUrl += data;
+                });
+            }
+            if (facetUrl != '') {
+                url += '&facets=' + facetUrl;
+            }
+            console.log(url);
+            jQuery.ajax({
+                type: "GET",
+                url: url,
+                success: function (res) {
+                    page = parseInt(page);
+                    getResults(res, page, sort, g_sortOrder, facetObj);
+                }
+            });
+        });
+
+//        jQuery(document).on('click', '.sort-order span', function (e) {
+        jQuery(document).on('click', '.solr-index-index .toolbar-sorter a', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            //var q = jQuery("#solr-search-form .text-input").val();
+            var q = jQuery("#search").val();
+            var sort = jQuery(document).find("select#solr-sort-by option:checked").val();
+            g_sortOrder = jQuery(this).attr('data-val');
+            var sorttext = '';
+            if (sort != '') {
+                sorttext = '&sort=' + sort + ' ' + g_sortOrder;
+            }
+            var page = '1';
+            var url = api_url + '?page_number=' + page + '&search_value=' + q + '&project_id='+store_name + sorttext;
+
+            var facetUrl = '';
+            facetObj = [];
+            jQuery(document).find('.filter-options-content .item a.selected').each(function (key, item) {
+                var f_url = jQuery(this).attr('data-facet') + ':' + jQuery(this).attr('data-facet-option');
+                facetObj.push(f_url);
+            });
+            if (facetObj.length) {
+                jQuery.each(facetObj, function (key, data) {
+                    if (key != 0) {
+                        facetUrl += '|';
+                    }
+                    facetUrl += data;
+                });
+            }
+            if (facetUrl != '') {
+                url += '&facets=' + facetUrl;
+            }
+            console.log(url);
+            jQuery.ajax({
+                type: "GET",
+                url: url,
+                success: function (res) {
+                    page = parseInt(page);
+                    getResults(res, page, sort, g_sortOrder, facetObj);
+                }
+            });
+        });
+
+        jQuery(document).on('click', '.solr-index-index .filter-options-item .filter-options-content .item a', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            jQuery(this).toggleClass('selected');
+
+            var dataFacet = jQuery(this).attr("data-facet");
+            console.log(dataFacet);
+            g_current_facet = dataFacet;
+            jQuery.each(g_facets, function (key, data) {
+                if (key == dataFacet) {
+                    g_currentFacetObj = data;
+                }
+            });
+
+            //var q = jQuery("#solr-search-form .text-input").val();
+            var q = jQuery("#search").val();
+            var sort = jQuery(document).find("select#solr-sort-by option:checked").val();
+            var sorttext = '';
+            if (sort != '') {
+                sorttext = '&sort=' + sort + ' ' + g_sortOrder;
+            }
+            var page = '1';
+            var url = api_url + '?page_number=' + page + '&search_value=' + q + '&project_id='+store_name + sorttext;
+
+            var facetUrl = '';
+            facetObj = [];
+            jQuery(document).find('.filter-options-content .item a.selected').each(function (key, item) {
+                var f_url = jQuery(this).attr('data-facet') + ':' + jQuery(this).attr('data-facet-option');
+                facetObj.push(f_url);
+            });
+            if (facetObj.length) {
+                jQuery.each(facetObj, function (key, data) {
+                    if (key != 0) {
+                        facetUrl += '|';
+                    }
+                    facetUrl += data;
+                });
+            }
+            if (facetUrl != '') {
+                url += '&facets=' + facetUrl;
+            }
+
+            var jstr = JSON.stringify(g_currentFacetObj);
+            url += '&currentfacet='+dataFacet+':' + jstr;
+//            url += '&currentfacet=hello';
+            console.log(url);
+
+            jQuery.ajax({
+                type: "GET",
+                url: url,
+                success: function (res) {
+                    page = parseInt(page);
+                    getResults(res, page, sort, g_sortOrder, facetObj);
+                }
+            });
+        });
+
+        jQuery(document).on('click', '.solr-index-index .filter-current .item a.action.remove', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            //var q = jQuery("#solr-search-form .text-input").val();
+            var q = jQuery("#search").val();
+            var sort = jQuery(document).find("select#solr-sort-by option:checked").val();
+            var sorttext = '';
+            if (sort != '') {
+                sorttext = '&sort=' + sort + ' ' + g_sortOrder;
+            }
+            var page = '1';
+            var url = api_url + '?page_number=' + page + '&search_value=' + q + '&project_id='+store_name + sorttext;
+            var facetUrl = '';
+            facetObj = [];
+            jQuery(document).find('.filter-options-content .item a.selected').each(function (key, item) {
+                var f_url = jQuery(this).attr('data-facet') + ':' + jQuery(this).attr('data-facet-option');
+                facetObj.push(f_url);
+            });
+            var itemtoRemove = jQuery(this).attr('data-facet') + ':' + jQuery(this).attr('data-facet-option');
+            facetObj.splice(jQuery.inArray(itemtoRemove, facetObj), 1);
+            if (facetObj.length) {
+                jQuery.each(facetObj, function (key, data) {
+                    if (key != 0) {
+                        facetUrl += '|';
+                    }
+                    facetUrl += data;
+                });
+            }
+            if (facetUrl != '') {
+                url += '&facets=' + facetUrl;
+            }
+            console.log(url);
+            jQuery.ajax({
+                type: "GET",
+                url: url,
+                success: function (res) {
+                    page = parseInt(page);
+                    getResults(res, page, sort, g_sortOrder, facetObj);
+                }
+            });
+        });
+
+        jQuery(document).on('click', '.solr-index-index a.action.clear.filter-clear', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            //var q = jQuery("#solr-search-form .text-input").val();
+            var q = jQuery("#search").val();
+            var sort = jQuery(document).find("select#solr-sort-by option:checked").val();
+            var sorttext = '';
+            if (sort != '') {
+                sorttext = '&sort=' + sort + ' ' + g_sortOrder;
+            }
+            var page = '1';
+            var url = api_url + '?page_number=' + page + '&search_value=' + q + '&project_id='+store_name + sorttext;
+            var facetUrl = '';
+            facetObj = [];
+
+            if (facetObj.length) {
+                jQuery.each(facetObj, function (key, data) {
+                    if (key != 0) {
+                        facetUrl += '|';
+                    }
+                    facetUrl += data;
+                });
+            }
+            if (facetUrl != '') {
+                url += '&facets=' + facetUrl;
+            }
+            console.log(url);
+            jQuery.ajax({
+                type: "GET",
+                url: url,
+                success: function (res) {
+                    page = parseInt(page);
+                    getResults(res, page, sort, g_sortOrder, facetObj);
+                }
+            });
+        });
+
+        jQuery(document).on('click', '.solr-index-index .filter-options-title', function (e) {
+            jQuery(this).parent().toggleClass('active');
+            jQuery(this).parent().find('.filter-options-content').toggleClass('active');
+        });
+    });
+
+    function getResults(res, page = 1, sort = null, sortOrder = 'asc', facetObj = []) {
+        var tot = parseInt(res['total_count']);
+        var start = parseInt(res['start']);
+        var end = parseInt(res['rows']);
+        var result = res.data;
+        var facets = res.facets;
+        g_facets = facets;
+        console.log(g_facets);
+        var html = '';
+        if (tot > 0) {
+            html += '<div class="products wrapper grid products-grid">';
+            html += '<ol class="products list items product-items">';
+
+            jQuery.each(result, function (key, data) {
+//                console.log(key);
+//                console.log(data);
+                var name = data['name'];
+                var url = base_url + data['url_key'] + '.html';
+                var jprice = data['price'];
+                var price = '<?php echo $currency; ?>'+jprice+'.00';
+                var image = image_url + data['base_image'];
+
+                html += '<li class="item product product-item">';
+                html += '<div class="product-block">';
+                html += '<div class="product-item-info" data-container="product-grid">';
+                html += '<div class="product-image">';
+                html += '<a href="'+url+'" class="product photo product-item-photo" tabindex="-1">';
+                html += '<span class="product-image-container" style="width:378px;">';
+                html += '<span class="product-image-wrapper" style="padding-bottom: 86.507936507937%;">';
+                html += '<img class="product-image-photo" src="' + image + '" width="252" height="327" alt="' + name + '">';
+                html += '</span>';
+                html += '</span>';
+                html += '</a>';
+                html += '<div class="product actions product-item-actions">';
+                html += '<div class="actions-primary">';
+                html += '<form data-role="tocart-form" action="" method="post">';
+//                html += '<input type="hidden" name="product" value="132">';
+//                html += '<input type="hidden" name="uenc" value="">';
+//                html += '<input name="form_key" type="hidden" value="r9xXgeKJadp9MVa9">';
+                html += '<a href="'+url+'" title="Add to Cart" class="action tocart primary">';
+                html += '<span>Add to Cart</span>';
+                html += '</a>';
+                html += '</form>';
+                html += '</div>';
+                html += '<div data-role="add-to-links" class="actions-secondary">';
+                html += '<a href="'+url+'" class="action towishlist" title="Add to Wish List" aria-label="Add to Wish List" data-post="" data-action="add-to-wishlist" role="button">';
+                html += '<span>Add to Wish List</span>';
+                html += '</a>';
+                html += '<a href="'+url+'" class="action tocompare" title="Add to Compare" aria-label="Add to Compare" data-post="" role="button">';
+                html += '<span>Add to Compare</span>';
+                html += '</a>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="product details product-item-details">';
+                html += '<strong class="product name product-item-name">';
+                html += '<a class="product-item-link" href="'+url+'">';
+                html += name;
+                html += '</a>';
+                html += '</strong>';
+                html += '<div class="price-box price-final_price" data-role="priceBox" data-product-id="132">';
+                html += '<span class="price-container price-final_price tax weee">';
+                html += '<span id="product-price-132" data-price-amount="' + price + '" data-price-type="finalPrice" class="price-wrapper ">';
+                html += '<span class="price">' + price + '</span>';
+                html += '</span>';
+                html += '</span>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</li>';
+                /*jQuery.each(data, function (key1, data1) {
+                 console.log(key1);
+                 console.log(data1);
+                 });*/
+            });
+
+            html += '</ol>';
+            html += '</div>';
+
+            var toolbarTop = '';
+            toolbarTop += '<p>';
+            toolbarTop += '<span class="toolbar-amount">';
+            toolbarTop += 'Items ' + start + '-' + end + ' of ' + tot;
+            toolbarTop += '</span>';
+
+            /* get sort by html */
+            toolbarTop += createSortBy(sort, sortOrder);
+
+            toolbarTop += '</p>';
+
+            var toolbarBottom = '';
+            var len = Math.floor(tot / 10);
+            if ((tot % 10) > 0) {
+                len = len + 1;
+            }
+
+            toolbarBottom += '<div class="toolbar-pagination">';
+            var j1 = (page - 2);
+            var j2 = (page + 2);
+            /* added condtion for previous page based on current page */
+            if (page != 1 || page > 1) {
+                toolbarBottom += '<button type="button" name="" class="solr-search-page prev ' + cls + '" data-page="' + (page - 1) + '" title="Prev"></button>';
+            }
+            if (1 < j1) {
+                toolbarBottom += '<span class="solr-search-extend">...</span>';
+            }
+            for (i = 1; i <= len; i++) {
+                if ((j1 <= i) && (j2 >= i)) {
+                    var cls = '';
+                    var disabled = '';
+                    if (page == i) {
+                        cls = 'active';
+                        disabled = 'disabled';
+                    }
+                    toolbarBottom += '<button type="button" name="" class="solr-search-page toolbar-page ' + cls + '" data-page="' + i + '" ' + disabled + '>' + i + '</button>';
+                }
+            }
+            if (len > j2) {
+                toolbarBottom += '<span class="solr-search-extend">...</span>';
+            }
+            /* added condtion for next page based on current page */
+            if (page != len || page < len) {
+                toolbarBottom += '<button type="button" name="" class="solr-search-page next' + cls + '" data-page="' + (page + 1) + '" title="Next"></button>';
+            }
+
+            toolbarBottom += '<span class="toolbar-page-size"><span>10</span> Items per page</span>';
+            toolbarBottom += '</div>';
+//            toolbarBottom += '</div>';
+
+            /* get filter options html */
+            var leftColumn = '';
+
+            leftColumn += '<div class="sidebar sidebar-main">';
+            leftColumn += '<div class="block filter" id="layered-filter-block" data-collapsible="true">';
+
+            leftColumn += createFilterOptions(facets, facetObj);
+
+            leftColumn += '</div></div>';
+
+            jQuery(".solr-search-results").show();
+            jQuery(".solr-no-results").hide();
+            jQuery(".solr-search-results .products").html(html);
+            jQuery(".solr-search-results .toolbar-top").html(toolbarTop);
+            jQuery(".solr-search-results .toolbar-bottom").html(toolbarBottom);
+            jQuery(".solr-search-results .left-column").html(leftColumn);
+        } else {
+            var nodata = '';
+            nodata += '<p>No results found</p>';
+            jQuery(".solr-no-results").html(nodata);
+            jQuery(".solr-search-results").hide();
+            jQuery(".solr-no-results").show();
+        }
+    }
+
+    function createFilterOptions(facets, facetObj) {
+        var facetHtml = '';
+
+        if (facetObj.length) {
+            facetHtml += '<div class="filter-current">';
+            facetHtml += '<strong class="block-subtitle filter-current-subtitle">Now Shopping by</strong>';
+            facetHtml += '<ol class="items">';
+            jQuery.each(facetObj, function (key, data) {
+                var array = data.split(':');
+                var ft_opt = array[0].replace("facet_", "");
+                ft_opt = ft_opt.replace("n_is_", "");
+                ft_opt = ft_opt.replace(/_/g, " ");
+                facetHtml += '<li class="item">';
+                facetHtml += '<span class="filter-label">' + ft_opt + '</span>';
+                facetHtml += '<span class="filter-value">' + array[1] + '</span>';
+                facetHtml += '<a class="action remove" href="#" title="Remove " data-facet="' + array[0] + '" data-facet-option="' + array[1] + '">';
+                facetHtml += '<span>Remove This Item</span>';
+                facetHtml += '</a></li>';
+            });
+
+            facetHtml += '</ol></div>';
+            facetHtml += '<div class="block-actions filter-actions">';
+            facetHtml += '<a href="#" class="action clear filter-clear"><span>Clear All</span></a>';
+            facetHtml += '</div>';
+        }
+
+        facetHtml += '<div class="block-content filter-content">';
+        facetHtml += '<strong role="heading" aria-level="2" class="block-subtitle filter-subtitle">Shopping Options</strong>';
+        facetHtml += '<div class="filter-options" id="narrow-by-list" data-role="content" role="tablist">';
+
+        jQuery.each(facets, function (key, data) {
+            var f_opt = key.replace("facet_", "");
+            f_opt = f_opt.replace("n_is_", "");
+            f_opt = f_opt.replace(/_/g, " ");
+            facetHtml += '<div class="filter-options-item allow">';
+            facetHtml += '<div class="filter-options-title">';
+            facetHtml += '<span>' + f_opt + '</span>';
+            facetHtml += '</div>';
+
+//            if (g_current_facet == key) {
+//                data = g_currentFacetObj;
+//            }
+
+//            var jstr = JSON.stringify(data);
+
+            facetHtml += '<div class="filter-options-content" data-facet="' + key + '" style="display: none;">';
+            facetHtml += '<ol class="items">';
+
+            jQuery.each(data, function (key1, data1) {
+                jQuery.each(data1, function (key2, data2) {
+                    var selected = '';
+                    jQuery.each(facetObj, function (fkey, fdata) {
+                        var farray = fdata.split(':');
+                        if (farray[0] == key && farray[1] == key2) {
+                            selected = 'selected';
+                        }
+                    });
+                    if (data2 != 0) {
+                        facetHtml += '<li class="item">';
+                        facetHtml += '<a href="#" class="' + selected + '" data-facet="' + key + '" data-facet-option="' + key2 + '">';
+                        facetHtml += key2 + ' <span class="count">' + data2 + '<span class="filter-count-label">items</span></span>';
+                        facetHtml += '</a></li>';
+                    }
+                });
+            });
+
+            facetHtml += '</ol></div></div>';
+        });
+
+        facetHtml += '</div></div>';
+        return facetHtml;
+    }
+
+    function createSortBy(sort, order = 'asc') {
+        var sortBy = '';
+        var jsonObj = [];
+        var name = {};
+        name["name"] = 'name';
+        name["label"] = 'Name';
+        jsonObj.push(name);
+        var price = {};
+        price["name"] = 'price';
+        price["label"] = 'Price';
+        jsonObj.push(price);
+
+        sortBy += '<div class="toolbar-sorter sorter">';
+        sortBy += '<label class="sorter-label" for="sorter">Sort By</label>';
+        sortBy += '<select id="solr-sort-by" data-role="sorter" class="sorter-options"><option value=""></option>';
+        jQuery.each(jsonObj, function (key, data) {
+            var selected = '';
+            if (sort == data["name"]) {
+                selected = 'selected';
+            }
+            sortBy += '<option value="' + data["name"] + '" ' + selected + '>' + data["label"] + '</option>';
+        });
+        sortBy += '</select>';
+        var ascOrder = '';
+        var descOrder = '';
+        if (order == 'desc') {
+            ascOrder = '';
+            descOrder = 'style="display: none;"';
+        } else {
+            ascOrder = 'style="display: none;"';
+            descOrder = '';
+        }
+        sortBy += '<a title="Set Ascending Direction" href="#" class="action sorter-action sort-desc" data-role="direction-switcher" data-value="asc" data-val="asc" '+ascOrder+'>';
+        sortBy += '<span>Set Direction</span>';
+        sortBy += '</a>';
+        sortBy += '<a title="Set Descending Direction" href="#" class="action sorter-action sort-asc" data-role="direction-switcher" data-value="desc" data-val="desc" '+descOrder+'>';
+        sortBy += '<span>Set Direction</span>';
+        sortBy += '</a>';
+        sortBy += '</div>';
+
+        /*sortBy += '<span class="toolbar-sort"><span>Sort By</span>';
+         sortBy += '<select id="solr-sort-by" name="solr_sort"><option value=""></option>';
+         jQuery.each(jsonObj, function (key, data) {
+         var selected = '';
+         if (sort == data["name"]) {
+         selected = 'selected';
+         }
+         sortBy += '<option value="' + data["name"] + '" ' + selected + '>' + data["label"] + '</option>';
+         });
+         //        sortBy += '<option value="price">Price</option>';
+         //        sortBy += '<option value="name">Name</option>';
+         sortBy += '</select>';
+         var ascOrder = '';
+         var descOrder = '';
+         if (order == 'desc') {
+         ascOrder = '';
+         descOrder = 'style="display: none;"';
+         } else {
+         ascOrder = 'style="display: none;"';
+         descOrder = '';
+         }
+         sortBy += '<span class="sort-order"><span class="asc" data-val="asc" ' + ascOrder + '>asc</span><span class="desc" data-val="desc" ' + descOrder + '>desc</span></span>';
+         sortBy += '</span>';*/
+        return sortBy;
+    }
+    });
+</script>
+<!-- <style>
+    .solr-search {
+        float: left;
+        width: 100%;
+    }
+
+    .solr-search .text-input {
+        float: left;
+        width: 75%;
+        padding: 2px 10px;
+        height: 33px;
+    }
+
+    .solr-search #solr-search-submit {
+        float: left;
+        width: 25%;
+        color: #fff;
+        padding: 4px;
+        background: #ff5560;
+        font-weight: 600;
+        border: none;
+        font-size: 20px;
+    }
+
+    .solr-search-results {
+        float: left;
+        width: 100%;
+    }
+
+    .solr-search-results .left-column {
+        float: left;
+        width: 25%;
+        margin-right: 3%;
+        margin-top: 25px;
+        margin-bottom: 25px;
+    }
+
+    .solr-search-results .left-column h4 {
+        text-align: center;
+    }
+
+    .solr-search-results .right-column {
+        float: left;
+        width: 72%;
+        margin-top: 25px;
+        margin-bottom: 25px;
+    }
+
+    .solr-search-results .products-grid .product-item {
+        float: left;
+        /*width: 25% !important;*/
+    }
+
+    .solr-search-results .toolbar-top {
+        float: left;
+        width: 100%;
+        margin: 5px 0 25px 0;
+    }
+    .solr-search-results .toolbar-bottom {
+        float: left;
+        width: 100%;
+        margin: 25px 0;
+    }
+
+    .solr-search-results .toolbar-top {
+        border-bottom: 1px solid #ccc;
+        border-top: 1px solid #ccc;
+        padding: 7px 0px;
+    }
+
+    .solr-search-results .toolbar-bottom .toolbar-page-size {
+        float: right;
+        width: auto;
+        margin: 5px 0;
+    }
+
+    .solr-search-results .toolbar-top .toolbar-sort {
+        float: right;
+        width: auto;
+        margin: 5px 0;
+    }
+
+    .solr-search-results .toolbar-top .toolbar-sort span,
+    .solr-search-results .toolbar-top .toolbar-sort select {
+        float: left;
+        width: auto;
+    }
+
+    .solr-search-results .toolbar-top .toolbar-sort span {
+        margin: 5px 10px;
+    }
+
+    .toolbar-pagination .solr-search-extend {
+        margin: 0 20px;
+        font-weight: 600;
+        font-size: 20px;
+    }
+
+    .toolbar-pagination .solr-search-page.active {
+        background: #e1e1e1 none repeat scroll 0 0;
+    }
+
+    .solr-no-results {
+        float: left;
+        width: 100%;
+        margin: 25px 0;
+    }
+
+    .sort-order span {
+        cursor: pointer;
+    }
+
+    .page-layout-1column .solr-search-results .left-column .filter-subtitle {
+        display: block !important;
+    }
+
+    .filter-options-item .filter-options-content.active {
+        display: block !important;
+        visibility: visible !important;
+        height: auto !important;
+        border: none !important;
+        position: relative !important;
+        box-shadow: none !important;
+    }
+
+    .filter-options-item {
+        width: 100% !important;
+        margin-right: 0 !important;
+    }
+
+    .page-layout-1column .filter-options-item.active:before {
+        display: none !important;
+    }
+
+    .page-layout-1column .solr-search-results .left-column .filter-current {
+        width: 100%;
+        display: block;
+    }
+
+    .page-layout-1column .solr-search-results .left-column .filter-current-subtitle {
+        width: 100%;
+        display: block;
+        font-size: 14px !important;
+        font-weight: 400 !important;
+    }
+
+    .solr-search-results .left-column .filter-label {
+        font-weight: 600;
+        text-transform: capitalize;
+    }
+
+    .page-layout-1column .solr-search-results .left-column .filter-current .items {
+        display: block !important;
+        float: left !important;
+        width: 94% !important;
+    }
+
+    .page-layout-1column .solr-search-results .left-column .filter-current .item {
+        margin-right: 0 !important;
+        float: left !important;
+        width: 98% !important;
+        display: block !important;
+    }
+
+    .page-layout-1column .solr-search-results .left-column .filter-current .action.remove {
+        line-height: unset !important;
+    }
+
+    .solr-index-index .page-title-wrapper {
+        display: none !important;
+    }
+    .solr-index-index .solr-search-results .page-title-wrapper {
+        display: block !important;
+    }
+    .solr-index-index .page-title-wrapper h1 {
+        font-size: 35px !important;
+        text-transform: uppercase;
+        margin-bottom: 10px!important;
+    }
+    .solr-search-results .toolbar-bottom {
+        padding: 10px 0;
+        border-top: 1px solid #dddddd;
+        border-bottom: 1px solid #dddddd;
+    }
+    .solr-search-results .toolbar-bottom .toolbar-page {
+        background: transparent;
+        border: none;
+    }
+    .solr-search-results .toolbar-bottom .toolbar-page.active {
+        color: #000;
+    }
+    .toolbar-pagination .prev:before {
+        -webkit-font-smoothing: antialiased;
+        font-size: 16px;
+        line-height: inherit;
+        color: #ff5560;
+        content: '\e617';
+        font-family: 'luma-icons';
+        margin: 0;
+        vertical-align: top;
+        display: inline-block;
+        font-weight: normal;
+        overflow: hidden;
+        speak: none;
+        text-align: center;
+    }
+    .toolbar-pagination .next:before {
+        -webkit-font-smoothing: antialiased;
+        font-size: 16px;
+        line-height: inherit;
+        color: #ff5560;
+        content: '\e608';
+        font-family: 'luma-icons';
+        margin: 0;
+        vertical-align: top;
+        display: inline-block;
+        font-weight: normal;
+        overflow: hidden;
+        speak: none;
+        text-align: center;
+    }
+
+    .solr-index-index .product-item .tocart {
+        border-radius: 10px !important;
+    }
+    .solr-index-index .product-item .tocart:hover {
+        background: #333 !important;
+        border: 1px solid #333 !important;;
+    }
+    .solr-index-index .product-item .actions-secondary a {
+        margin-left: 3px !important;;
+    }
+</style> -->
+<!-- <style>
+	.wrap {
+		width: 75%;
+		position: relative;
+		top: 0;
+		right: 0;
+		transform: unset;
+		float: left !important;
+		z-index: 10;
+		padding: 13px 0;
+	}
+	.wrap .block-search {
+		width: 100% !important;
+		float: left !important;
+	}
+    #search {
+        padding-left: 5px !important;
+    }
+    #search_autocomplete {
+        position: absolute;
+        top: 31px;
+        left: 0;
+        width: 100%;
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 10px;
+        height: 500px;
+        max-height: 500px;
+    }
+    #search_autocomplete h4 {
+        margin: 5px 0;
+        font-weight: 400;
+        text-transform: capitalize;
+    }
+    #search_autocomplete ul {
+        border: none;
+    }
+    #search_autocomplete ul li {
+        font-style: normal;
+        border: none;
+    }
+    #search_autocomplete ul li:hover {
+        background: #c7c1c1!important;
+    }
+    #search_autocomplete ul li em {
+        font-style: normal;
+        font-weight: 600;
+    }
+    #search_autocomplete .sugg-left {
+        width: 40%;
+        float: left;
+    }
+    #search_autocomplete .sugg-right {
+        width: 59.8%;
+        float: left;
+        border-left: 1px solid #ccc;
+        height: 100%;
+    }
+    #search_autocomplete .details {
+        width: 100%;
+        float: left;
+    }
+    #search_autocomplete .head-content {
+        border-bottom: 1px solid #dbdbdb;
+        padding: 10px 0px;
+        width: 100%;
+        float: left;
+    }
+    #search_autocomplete .head-content:last-child {
+        border-bottom: none;
+    }
+    #search_autocomplete .col-md-6 {
+        -webkit-box-flex: 0;
+        -webkit-flex: 0 0 50%;
+        -ms-flex: 0 0 50%;
+        flex: 0 0 50%;
+        max-width: 50%;
+        width: 50%;
+        float: left;
+    }
+    #search_autocomplete .products-image {
+        padding: 0px;
+        max-width: 33.333333%;
+        width: 33.333333%;
+        float: left;
+    }
+    #search_autocomplete .products-image img {
+        width: 90%;
+    }
+    #search_autocomplete .col-md-8 {
+        -webkit-box-flex: 0;
+        -webkit-flex: 0 0 66.666667%;
+        -ms-flex: 0 0 66.666667%;
+        flex: 0 0 66.666667%;
+        max-width: 66.666667%;
+        width: 66.666667%;
+        float: left;
+    }
+    #search_autocomplete .pro-deatils h5 {
+        color: #505050;
+        font-size: 13px;
+        font-weight: 500;
+        margin: 0;
+        width: 100%;
+        float: left;
+    }
+    #search_autocomplete .pro-deatils h6 {
+        color: #ff5560;
+        font-weight: 600;
+        margin: 5px 0;
+        width: 100%;
+        float: left;
+    }
+    #search_autocomplete .pro-deatils a {
+        margin: 5px 0;
+        color: #1c677e;
+    }
+</style> -->
+
